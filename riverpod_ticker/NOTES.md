@@ -24,3 +24,24 @@ When all listeners (e.g. `TickerPage` or other consuming widgets) unsubscribe or
 - During the initial 800 ms `Future.delayed` call before the first `yield`:
   - `tickerProvider` holds `AsyncLoading<List<Tick>>()`.
   - `hasValue` is `false` (and `value` is `null`), because no tick data has been emitted yet.
+
+---
+
+## Part 3 Exercises
+
+### Exercise 3.3: Break the switch on purpose
+When commenting out the `AsyncLoading()` arm from the switch expression:
+- **Exact Analyzer Diagnostic:**
+  ```text
+  The type 'AsyncValue<List<Tick>>' is not exhaustively matched by the switch expression because it can be 'AsyncLoading<List<Tick>>'.
+  Try adding a case for 'AsyncLoading<List<Tick>>', or add a default case. (non_exhaustive_switch_expression)
+  ```
+- **Significance:**
+  `AsyncValue` is declared as a `sealed class` in Dart 3. The compiler enforces exhaustive pattern matching at compile time. If any subtype (`AsyncData`, `AsyncLoading`, or `AsyncError`) is not handled, compilation fails, preventing runtime unhandled state errors.
+
+### Exercise 3.4: Pattern-match on content, not just state
+Why must `AsyncData(value: [])` and `AsyncData(value: [final only])` come before the general `AsyncData(:final value)` arm?
+- **Sequential Evaluation & Pattern Specificity:**
+  In Dart 3 pattern matching, switch arms are evaluated from top to bottom. The first pattern that matches the incoming value executes.
+- **Shadowing / Dead Code:**
+  The pattern `AsyncData(:final value)` matches **any** instance of `AsyncData<List<Tick>>`, including empty lists and single-element lists. If placed above the more specific list patterns, it would always match first, shadowing the specific arms and making `AsyncData(value: [])` and `AsyncData(value: [final only])` unreachable dead code.

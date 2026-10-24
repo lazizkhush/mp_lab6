@@ -45,3 +45,17 @@ Why must `AsyncData(value: [])` and `AsyncData(value: [final only])` come before
   In Dart 3 pattern matching, switch arms are evaluated from top to bottom. The first pattern that matches the incoming value executes.
 - **Shadowing / Dead Code:**
   The pattern `AsyncData(:final value)` matches **any** instance of `AsyncData<List<Tick>>`, including empty lists and single-element lists. If placed above the more specific list patterns, it would always match first, shadowing the specific arms and making `AsyncData(value: [])` and `AsyncData(value: [final only])` unreachable dead code.
+
+---
+
+## Part 4 Exercises
+
+### Exercise 4.3: Refresh vs Invalidate
+- **Keeping previous rows visible during reload:**
+  Both `ref.refresh(tickerProvider.future)` and `ref.invalidate(tickerProvider)` preserve the previous emission in `value` while transitioning the provider into an `isLoading` state. Because of our pattern `AsyncValue(:final value?, isLoading: true)`, both keep the previous rows visible on screen with a progress indicator rather than resetting to a blank full-screen spinner.
+- **Why `refresh(...future)` returns something awaitable:**
+  `ref.refresh(provider.future)` invalidates the provider and immediately returns the `Future` corresponding to the next value resolution. Flutter's `RefreshIndicator.onRefresh` requires a `Future<void>` to know when the pull-to-refresh animation should dismiss. `ref.invalidate(provider)`, on the other hand, returns `void` synchronously and does not provide an awaitable future for the completion of the refresh.
+
+### Exercise 4.4: Distinguish a reconnect from a first load
+- **Explanation:**
+  `isRefreshing` is `true` specifically when an `AsyncValue` is in a loading state and already carries previously loaded data (`hasValue == true`), whereas `isReloading` is `true` when an `AsyncValue` is in a loading state and already carries either previous data or a previous error (`hasValue == true || hasError == true`).

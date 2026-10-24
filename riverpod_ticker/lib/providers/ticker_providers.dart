@@ -12,3 +12,21 @@ final tickFeedProvider = Provider<TickFeed>((ref) {
 final tickerProvider = StreamProvider.autoDispose<List<Tick>>((ref) {
   return ref.watch(tickFeedProvider).watch();
 });
+
+/// Stretch Goal 1: Per-symbol family stream provider
+final tickBySymbolProvider =
+    StreamProvider.autoDispose.family<Tick, String>((ref, symbol) {
+  return ref
+      .watch(tickerProvider.stream)
+      .expand((ticks) => ticks)
+      .where((tick) => tick.symbol == symbol);
+});
+
+/// Stretch Goal 4: AsyncValue.guard balance provider
+final balanceProvider = FutureProvider.autoDispose<double>((ref) async {
+  final result = await AsyncValue.guard(() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return 12450.75;
+  });
+  return result.requireValue;
+});

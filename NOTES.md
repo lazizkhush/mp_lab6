@@ -59,3 +59,48 @@ Why must `AsyncData(value: [])` and `AsyncData(value: [final only])` come before
 ### Exercise 4.4: Distinguish a reconnect from a first load
 - **Explanation:**
   `isRefreshing` is `true` specifically when an `AsyncValue` is in a loading state and already carries previously loaded data (`hasValue == true`), whereas `isReloading` is `true` when an `AsyncValue` is in a loading state and already carries either previous data or a previous error (`hasValue == true || hasError == true`).
+
+---
+
+## Checkpoint Questions
+
+### 1. Which three subtypes make `AsyncValue` sealed, and what does the analyzer report when a switch expression misses one?
+The three direct subtypes of `AsyncValue` are:
+1. `AsyncData<T>`
+2. `AsyncLoading<T>`
+3. `AsyncError<T>`
+
+When a switch expression misses one of these subtypes, the Dart analyzer reports a compile-time error:
+```text
+The type 'AsyncValue<T>' is not exhaustively matched by the switch expression because it can be '<MissingType><T>'. (non_exhaustive_switch_expression)
+```
+Because `AsyncValue` is sealed, the compiler guarantees that every possible subtype is accounted for without needing a fallback `default` arm.
+
+### 2. When does `AsyncError.value` carry a non-null value, and when is it null?
+- **Non-null (`hasValue == true`):** When the provider previously emitted valid data before the error occurred (e.g. during a live stream hiccup, network disconnection, or a subsequent failed refresh). Riverpod preserves the last known good data in `AsyncError.value` so that UI can continue displaying cached data with a notification banner.
+- **Null (`hasValue == false`):** When the error occurs during the cold initial load before any data was ever emitted.
+
+### 3. What is the difference between `ref.refresh(provider)`, `ref.refresh(provider.future)`, and `ref.invalidate(provider)`?
+- `ref.invalidate(provider)`: Synchronously invalidates the provider's state, marking it dirty and scheduling re-evaluation. It returns `void`.
+- `ref.refresh(provider)`: Equivalent to calling `ref.invalidate(provider)` followed by `ref.read(provider)`. It forces immediate recomputation and returns the newly produced state synchronously (usually `AsyncLoading`).
+- `ref.refresh(provider.future)`: Invalidates the provider and returns a `Future` that resolves when the new value has finished loading. This is required for `RefreshIndicator.onRefresh` which needs to `await` completion.
+
+### 4. Why does `AsyncValue(:final value?, isLoading: true)` need to sit above `AsyncData(:final value)`?
+Pattern matching arms are evaluated top-to-bottom. When a provider with existing data is refreshing or reloading, its state has `hasValue == true` and `isLoading == true`. If `AsyncData(:final value)` were placed first, any `AsyncData` that is currently reloading would match the general data arm and ignore the loading state, preventing the UI from showing the progress bar or refresh indicator. Placing `AsyncValue(:final value?, isLoading: true)` above ensures that the active refresh state is prioritized and rendered.
+
+### 5. Give one reason to prefer switch expressions over `.when(...)` for `AsyncValue`, and one situation where `.when` is still convenient.
+- **Reason to prefer switch expressions:** Dart 3 pattern matching provides unmatched expressiveness. You can inspect internal properties (`:final value?`, `isLoading: true`), destructure nested collections (`AsyncData(value: [final only])`), and handle hybrid states (such as stale data under error: `AsyncError(:final error, :final value?)`) cleanly in a single flat structure.
+- **Situation where `.when` is still convenient:** For simple, standard widgets with no nested pattern logic or stale-data handling, `.when(data: ..., loading: ..., error: ...)` is concise and provides built-in flags like `skipLoadingOnRefresh` and `skipLoadingOnReload`.
+
+---
+
+## Stretch Goals Implementation Notes
+
+1. **Per-symbol providers:**
+   Implemented `tickBySymbolProvider = StreamProvider.autoDispose.family<Tick, String>` in `ticker_providers.dart` using `ref.watch(tickerProvider.stream).expand((ticks) => ticks).where((tick) => tick.symbol == symbol)`.
+2. **Flash on change:**
+   Can be handled inside individual symbol rows by listening to tick price transitions via `ref.listen` in a `ConsumerWidget`.
+3. **Backoff retry:**
+   Configurable retry loop with incremental delays (1s, 2s, 4s) wrapped around the feed connection.
+4. **`AsyncValue.guard`:**
+   Demonstrated in `ticker_providers.dart` via `balanceProvider` wrapping simulated asynchronous calls with `AsyncValue.guard`, transforming try-catch blocks into structured `AsyncValue` outputs.
